@@ -11,10 +11,13 @@ import eventlet.wsgi
 from PIL import Image
 from flask import Flask
 from io import BytesIO
+import cv2
 
 from keras.models import load_model
 import h5py
 from keras import __version__ as keras_version
+
+from tools import convert_image_rgb, remove_noise, resize_image
 
 sio = socketio.Server()
 app = Flask(__name__)
@@ -60,7 +63,15 @@ def telemetry(sid, data):
         # The current image from the center camera of the car
         imgString = data["image"]
         image = Image.open(BytesIO(base64.b64decode(imgString)))
+        
         image_array = np.asarray(image)
+#         image_array = cv2.GaussianBlur(image_array, (3,3), 0)
+#         image_array = cv2.resize(image_array,(200, 66))
+        
+        image_array = convert_image_rgb(image_array)
+        image_array = remove_noise(image_array)
+        image_array = resize_image(image_array)
+        
         steering_angle = float(model.predict(image_array[None, :, :, :], batch_size=1))
 
         throttle = controller.update(float(speed))
@@ -68,7 +79,7 @@ def telemetry(sid, data):
         print(steering_angle, throttle)
         send_control(steering_angle, throttle)
 
-        # save frame
+        # save        
         if args.image_folder != '':
             timestamp = datetime.utcnow().strftime('%Y_%m_%d_%H_%M_%S_%f')[:-3]
             image_filename = os.path.join(args.image_folder, timestamp)
